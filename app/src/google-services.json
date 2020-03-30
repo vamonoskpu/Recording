@@ -1,0 +1,85 @@
+{
+  "project_info": {
+    "project_number": "626019930969",
+    "firebase_url": "https://howinstagram-252ea.firebaseio.com",
+    "project_id": "howinstagram-252ea",
+    "storage_bucket": "howinstagram-252ea.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:626019930969:android:8488edea96d8281a",
+        "android_client_info": {
+          "package_name": "kc.ac.kpu.howinstagram"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "626019930969-nckot0in3f7rbmavvpi6nc2iufv126pi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "kc.ac.kpu.howinstagram",
+            "certificate_hash": "b080ca30fab674f6431f20d19eb4dcc37566ce06"
+          }
+        },
+        {
+          "client_id": "626019930969-jlrhpbtms17jjrubb06as2bk7fpgcgov.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_sz2gGNxTfVKLr0pFkjN3zu6uYUPBgGI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "626019930969-jlrhpbtms17jjrubb06as2bk7fpgcgov.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:626019930969:android:98ecfb051872d7c1867248",
+        "android_client_info": {
+          "package_name": "kc.ac.kpu.recordtest"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "626019930969-nbq23ploaj1l3jvluf95h9m1k3g1hjui.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "kc.ac.kpu.recordtest",
+            "certificate_hash": "b080ca30fab674f6431f20d19eb4dcc37566ce06"
+          }
+        },
+        {
+          "client_id": "626019930969-jlrhpbtms17jjrubb06as2bk7fpgcgov.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_sz2gGNxTfVKLr0pFkjN3zu6uYUPBgGI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "626019930969-jlrhpbtms17jjrubb06as2bk7fpgcgov.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
