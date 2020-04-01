@@ -109,34 +109,68 @@ public class RecordActivity extends AppCompatActivity {
         //setInitializeState();
     }
 
-    private File getSavePath() {
-        if (hasSDCard()) {
-            File path = new File(Environment.getExternalStorageDirectory(), "/VoiceChanger/");
-            path.mkdirs();
-            return path;
-        } else {
-            Log.i(TAG, "SDCard is unuseable: " + Environment.getExternalStorageState());
-            return getFilesDir();
-        }
-    }
-
-    private boolean hasSDCard() {
-        String state = Environment.getExternalStorageState();
-        return state.equals(Environment.MEDIA_MOUNTED);
-    }
-
-    private int getDataBytesPerSecond(int sampleRate, int channelConfig, int audioEncoding) {
-        boolean is8bit = audioEncoding == AudioFormat.ENCODING_PCM_8BIT;
-        boolean isMonoChannel = channelConfig != AudioFormat.CHANNEL_CONFIGURATION_STEREO;
-        return sampleRate * (isMonoChannel ? 1: 2) * (is8bit ? 1: 2);
-    }
-
-    private void configureEventListener(){
-        recordButton.setOnClickListener(new View.OnClickListener(){
-            public void onClick(View v){
+    private void configureEventListener() {
+        recordButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
                 startRecording();
+            }
+        }); //여기원래 잇는 부분인데 configureEvent listener가 어디에 있찌?
+    }
+
+    private void setInitializeState() {
+        recordButton.setEnabled(true);
+        playButton.setEnabled(true);
+        stopButton.setEnabled(false);
+        saveButton.setEnabled(true);
+    }
+
+    private boolean saveSoundFile(File savefile, boolean isWavFile){
+
+        Uri file;
+        StorageReference wavRef;
+        UploadTask uploadTask;
+
+        byte[] data= displayView.getAllWaveData();
+        if(data.length==0){
+            Log.w(TAG, "save data is not found");
+            return false;
         }
-    }); //여기원래 잇는 부분인데 configureEvent listener가 어디에 있찌?
+        try{
+            savefile.createNewFile();
+            FileOutputStream targetStream = new FileOutputStream(savefile);
+            try{
+                if(isWavFile){
+                    WaveFileHeaderCreator.pushWaveHead(targetStream,SAMPLE_RATE, CHANNEL_CONFIG,AUDIO_ENCODING, data.length);
+                }
+                targetStream.write(data);
+            }
+            finally {
+                if(targetStream!=null){
+                    targetStream.close();
+                }
+            }
+            file = Uri.fromFile(new File(getSavePath()+"/"+String.valueOf(labelNumber)+"-"+recordNumber.toString()+".wav"));
+            wavRef = storageRef.child(user.getUid()+"/learning/"+file.getLastPathSegment());
+            uploadTask = wavRef.putFile(file);
+
+            /*  여기부터  */
+            uploadTask.addOnFailureListener (new OnFailureListener(){
+                public void onFailure(@NonNull Exception e){
+                    Toast.makeText(RecordActivity.this, e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            }).addOnSuccessListener((OnSuccessListener)(TaskSnapshot){
+                    Toast.makeText(RecordActivity.this,"FileUpload Success", Toast.LENGTH_LONG).show();
+            });
+            return true;
+
+            /* 여기까지 */
+
+        }
+        catch (IOException ex){
+            Log.w(TAG, "Fail to save sound file",ex);
+            return false;
+        }
+    }
 
     private void startRecording(){
         Log.i(TAG,"start recording");
@@ -150,6 +184,90 @@ public class RecordActivity extends AppCompatActivity {
         recordTask.start();
         waitEndTask(recordTask);
     }
+
+    private void stopRecording(){
+        stopTask(recordTask);
+        FirebaseDatabase.getInstance()
+                .getReference()
+                .child("users")
+                .child(user.getUid())
+                .child("recordNumber")
+                .addListenerForSingleValueEvent(new ValueEventListener(){
+                    public void onDataChange(DataSnapshot dataSnapshot) {
+                        recordNumber = dataSnapshot.getValue();
+                        labelNumber = Integer.parseInt(recordNumber.toString()) / 50;
+
+                        if (Integer.parseInt(recordNumber.toString()) % 10 == 9)
+                            countText.setText(String.valueOf(labelNumber + 1));
+                        else
+                            countText.setText(String.valueOf(labelNumber));
+
+                        if (Integer.parseInt(recordNumber.toString()) > 498) {
+                            mdatabase.child("users").child(user.getUid()).child("learning").setValue("true");
+                            mdatabase.child("users").child(user.getUid()).child("NewUser").setValue("No");
+
+                            Intent intent = new Intent(RecordActivity.this, MainActivity.class);
+                            startActivity(intent);
+                            finish();
+                        }
+
+                        Toast.makeText(RecordActivity.this, recordNumber.toString(), Toast.LENGTH_LONG).show();
+                        final File file = new File(getSavePath(), String.valueOf(labelNumber) + "_" + recordNumber.toString() + ".wav");
+
+                        saveSoundFile(file, true);
+
+                        recordNumber = Integer.parseInt(recordNumber.toString()) + 1;
+                        mdatabase.child("users").child("user").getUid().child("recordNumber").setValue(recordNumber);
+                    }
+
+                    public void onCancelled(DatabaseError databaseError) {
+                        Log.e(TAG, "ERROR DataBase");
+                    }
+
+                });
+        Log.i(TAG,"stop recording");
+    }
+
+    private void startPlaying() {
+        Log.i(TAG, "start playing.");
+
+        setButtonEnable(true);
+        try {
+            playTask = new AudioPlayTask(progressBar, displayView, SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_ENCODING);
+        } catch (IllegalArgumentException ex) {
+            Log.w(TAG, "Fail to create MicRecordTask.", ex);
+        }
+        playTask.start();
+        waitEndTask(playTask);
+    }
+
+    private void stopPlaying() {
+        stopTask(playTask);
+        Log.i(TAG, "stop playing.");
+    }
+
+    private void stopTask(StopableTask task) {
+        if (task.stopTask()) {
+            try {
+                task.join(1000);
+            } catch (InterruptedException e) {
+                Log.w(TAG, "Interrupted recoring thread stopping.");
+            }
+        }
+        setButtonEnable(false);
+    }
+
+
+    private void stopAll() {
+        if (recordTask != null && recordTask.isRunning()) {
+            stopRecording();
+        }
+        if (playTask != null && playTask.isRunning()) {
+            stopPlaying();
+        }
+    }
+
+
 
     private void setButtonEnable(boolean b) {
         recordButton.setEnabled(!b);
@@ -179,94 +297,31 @@ public class RecordActivity extends AppCompatActivity {
         }).start();
     }
 
-    private void stopRecording(){
-        stopTask(recordTask);
-        FirebaseDatabase.getInstance()
-                .getReference()
-                .child("users")
-                .child(user.getUid())
-                .child("recordNumber")
-                .addListenerForSingleValueEvent(new ValueEventListener(){
-                    public void onDataChange(DataSnapshot dataSnapshot) {
-                        recordNumber = dataSnapshot.getValue();
-                        labelNumber = Integer.parseInt(recordNumber.toString()) / 50;
 
-                        if (Integer.parseInt(recordNumber.toString()) % 10 == 9)
-                            countText.setText(String.value0f(labelNumber + 1));
-                        else
-                            countText.setText(String.value0f(labelNumber));
 
-                        if (Integer.parseInt(recordNumber.toString()) > 498) {
-                            mdatabase.child("users").child(user.getUid()).child("learning").setValue("true");
-                            mdatabase.child("users").child(user.getUid()).child("NewUser").setValue("No");
 
-                            Intent intent = new Intent(RecordActivity.this, MainActivity.class);
-                            startActivity(intent);
-                            finish();
-                        }
-
-                        Toast.makeText(RecordActivity.this, recordNumber.toString(), Toast.LENGTH_LONG).show();
-                        final File file = new File(getSavePath(), String.value0f(labelNumber) + "_" + recordNumber.toString() + ".wav");
-
-                        saveSoundFile(file, true);
-
-                        recordNumber = Integer.parseInt(recordNumber.toString()) + 1;
-                        mdatabase.child("users").child("user").getUid().child("recordNumber").setValue(recordNumber);
-                    }
-
-                    public void onCancelled(DatabaseError databaseError) {
-                        Log.e(TAG, "ERROR DataBase");
-                    }
-
-                });
-        Log.i(TAG,"stop recording");
-    }
-
-    private boolean saveSoundFile(File savefile, boolean isWavFile){
-
-        Uri file;
-        StorageReference wavRef;
-        UploadTask uploadTask;
-
-        byte[] data= displayView.getAllWaveData();
-        if(data.length==0){
-            Log.w(TAG, "save data is not found");
-            return false;
-        }
-        try{
-            savefile.createNewFile();
-            FileOutputStream targetStream = new FileOutputStream(savefile);
-            try{
-                if(isWavFile){
-                    WaveFileHeaderCreator.pushWaveHead(targetStream,SAMPLE_RATE, CHANNEL_CONFIG,AUDIO_ENCODING, data.length);
-                }
-                targetStream.write(data);
-            }
-            finally {
-                if(targetStream!=null){
-                    targetStream.close();
-                }
-            }
-            file = Uri.fromFile(new File(getSavePath()+"/"+String.value0f(labelNumber)+"-"+recordNumber.toString()+".wav"));
-            wavRef = storageRef.child(user.getUid()+"/learning/"+file.getLastPathSegment());
-            uploadTask = wavRef.putFile(file);
-
-            /*  여기부터  */
-            uploadTask.addOnFailureListener (new OnFailureListener(){
-                public void onFailure(@NonNull Exception e){
-                    Toast.makeText(RecordActivity.this, e.getMessage(), Toast.LENGTH_LONG).show();
-                }
-            }).addOnSuccessLintner((OnSuccessLinstener)(TaskSnapshot){
-                    Toast.makeText(RecordActivity.this,"FileUpload Success", Toast.LENGTH_LONG).show();
-            });
-            return true;
-
-            /* 여기까지 */
-
-        }
-        catch (IOException ex){
-            Log.w(TAG, "Fail to save sound file",ex);
-            return false;
+    private File getSavePath() {
+        if (hasSDCard()) {
+            File path = new File(Environment.getExternalStorageDirectory(), "/VoiceChanger/");
+            path.mkdirs();
+            return path;
+        } else {
+            Log.i(TAG, "SDCard is unuseable: " + Environment.getExternalStorageState());
+            return getFilesDir();
         }
     }
+
+
+    private boolean hasSDCard() {
+        String state = Environment.getExternalStorageState();
+        return state.equals(Environment.MEDIA_MOUNTED);
+    }
+
+    private int getDataBytesPerSecond(int sampleRate, int channelConfig, int audioEncoding) {
+        boolean is8bit = audioEncoding == AudioFormat.ENCODING_PCM_8BIT;
+        boolean isMonoChannel = channelConfig != AudioFormat.CHANNEL_CONFIGURATION_STEREO;
+        return sampleRate * (isMonoChannel ? 1: 2) * (is8bit ? 1: 2);
+    }
+
+
 }
