@@ -4,30 +4,23 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
-import android.app.Activity;
-import android.content.DialogInterface;
 import android.Manifest;
 import android.content.Intent;
-import android.media.MediaPlayer;
-import android.media.MediaRecorder;
 import android.media.AudioFormat;
 import android.net.Uri;
 import android.os.Environment;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.provider.MediaStore;
-
-import kc.ac.kpu.recordtest.NormalizeWaveData;
-import kc.ac.kpu.recordtest.WaveFileHeaderCreator;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -47,8 +40,6 @@ import com.google.firebase.storage.UploadTask;
 
 
 import androidx.annotation.NonNull;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
 public class RecordActivity extends AppCompatActivity {
 
@@ -109,65 +100,167 @@ public class RecordActivity extends AppCompatActivity {
         //setInitializeState();
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        boolean ret = super.onCreateOptionsMenu(menu);
+        int index = Menu.FIRST;
+        menu.add(Menu.NONE, index++, Menu.NONE, "データクリア");
+        menu.add(Menu.NONE, index++, Menu.NONE, "ノイズを追加");
+        menu.add(Menu.NONE, index++, Menu.NONE, "サインを追加");
+        menu.add(Menu.NONE, index++, Menu.NONE, "矩形を追加");
+        return ret;
+    }
+
+    /*
+    @Override
+      public boolean onOptionsItemSelected(MenuItem item) {
+        final int size = 8000;
+        final int freq = 440;
+        switch (item.getItemId()) {
+            case Menu.FIRST:
+                displayView.clearWaveData();
+                break;
+            case Menu.FIRST + 1:
+                displayView.addWaveData(NormalizeWaveData.createNoiseData(size));
+                break;
+            case Menu.FIRST + 2:
+                displayView.addWaveData(NormalizeWaveData.createSineData(size, freq));
+                break;
+            case Menu.FIRST + 3:
+                displayView.addWaveData(NormalizeWaveData.createSquareData(size, freq));
+                break;
+        }
+        return true;
+    }*/
+
+    @Override
+    protected void onPause() {
+        if (stopButton.isEnabled()) {
+            stopAll();
+        }
+        super.onPause();
+    }
+
     private void configureEventListener() {
         recordButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 startRecording();
             }
         }); //여기원래 잇는 부분인데 configureEvent listener가 어디에 있찌?
+
+        playButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startPlaying();
+            }
+        });
+
+        stopButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stopAll();
+            }
+        });
+
+        /*saveDialog = createSaveDialog();
+        saveButton.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                saveDialog.show();
+            }
+        });*/
+
+
     }
 
-    private void setInitializeState() {
+    /*private void setInitializeState() {
         recordButton.setEnabled(true);
         playButton.setEnabled(true);
         stopButton.setEnabled(false);
         saveButton.setEnabled(true);
-    }
+    }*/
 
-    private boolean saveSoundFile(File savefile, boolean isWavFile){
+    /*private AlertDialog createSaveDialog() {
+        final Handler handler = new Handler();
+        final View view = LayoutInflater.from(this).inflate(R.layout.save_dialog, null);
+        return new AlertDialog.Builder(this)
+                .setTitle(R.string.dialog_save_title)
+                .setView(view)
+                .setPositiveButton(R.string.dialog_save_button_save, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        EditText filename = (EditText) view.findViewById(R.id.filenameEditText);
+                        RadioButton wavRadio = (RadioButton) view.findViewById(R.id.wavRadio);
+
+                        boolean isWavFile = wavRadio.isChecked();
+                        final File file = new File(getSavePath(), filename.getText() + (isWavFile ? ".wav" : ".raw"));
+                        saveSoundFile(file, isWavFile);
+
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(RecorderActivity.this, "Save completed: " + file.getAbsolutePath(), Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    }
+                })
+                .setNegativeButton(R.string.dialog_save_button_cancel, null)
+                .create();
+    }*/
+
+    private boolean saveSoundFile(File savefile, boolean isWavFile) {
 
         Uri file;
         StorageReference wavRef;
         UploadTask uploadTask;
 
-        byte[] data= displayView.getAllWaveData();
-        if(data.length==0){
+        byte[] data = displayView.getAllWaveData();
+        if (data.length == 0) {
             Log.w(TAG, "save data is not found");
             return false;
         }
-        try{
+        try {
             savefile.createNewFile();
             FileOutputStream targetStream = new FileOutputStream(savefile);
-            try{
-                if(isWavFile){
-                    WaveFileHeaderCreator.pushWaveHead(targetStream,SAMPLE_RATE, CHANNEL_CONFIG,AUDIO_ENCODING, data.length);
+            try {
+                if (isWavFile) {
+                    WaveFileHeaderCreator.pushWaveHeader(targetStream, SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_ENCODING, data.length);
                 }
                 targetStream.write(data);
-            }
-            finally {
-                if(targetStream!=null){
+            } finally {
+                if (targetStream != null) {
                     targetStream.close();
                 }
             }
-            file = Uri.fromFile(new File(getSavePath()+"/"+String.valueOf(labelNumber)+"-"+recordNumber.toString()+".wav"));
-            wavRef = storageRef.child(user.getUid()+"/learning/"+file.getLastPathSegment());
+            file = Uri.fromFile(new File(getSavePath() + "/" + String.valueOf(labelNumber) + "-" + recordNumber.toString() + ".wav"));
+            wavRef = storageRef.child(user.getUid() + "/learning/" + file.getLastPathSegment());
             uploadTask = wavRef.putFile(file);
-
-            /*  여기부터  */
-            uploadTask.addOnFailureListener (new OnFailureListener(){
+            /*uploadTask.addOnFailureListener (new OnFailureListener(){
                 public void onFailure(@NonNull Exception e){
                     Toast.makeText(RecordActivity.this, e.getMessage(), Toast.LENGTH_LONG).show();
                 }
             }).addOnSuccessListener((OnSuccessListener)(TaskSnapshot){
                     Toast.makeText(RecordActivity.this,"FileUpload Success", Toast.LENGTH_LONG).show();
-            });
+            });/*
             return true;
 
             /* 여기까지 */
+            uploadTask.addOnFailureListener(new OnFailureListener() { //upload 수행의 결과를 확인하는 리스너
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    Toast.makeText(RecordActivity.this, e.getMessage() + "실패", Toast.LENGTH_LONG).show();
+                }
+            }).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                @Override
+                public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                    Toast.makeText(RecordActivity.this, "FileUpload Success", Toast.LENGTH_SHORT).show();
+                }
+            });
+            return true;
 
-        }
-        catch (IOException ex){
-            Log.w(TAG, "Fail to save sound file",ex);
+
+        } catch (IOException ex) {
+            Log.w(TAG, "Fail to save sound file", ex);
             return false;
         }
     }
@@ -177,7 +270,7 @@ public class RecordActivity extends AppCompatActivity {
         setButtonEnable(true);
         try{
             recordTask=new MicRecordTask(progressBar, displayView, SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_ENCODING);
-            recordTask.setMax(3 * getDataBytesPerSecond(SAMPLE_RATE,CHANNEL_CONFIG,AUDIO_ENCODING,AUDIO_ENCODING));
+            recordTask.setMax(3 * getDataBytesPerSecond(SAMPLE_RATE,CHANNEL_CONFIG,AUDIO_ENCODING));
         } catch (IllegalArgumentException ex){
             Log.w(TAG, "Fail to create MicRecordTask", ex);
         }
@@ -217,7 +310,7 @@ public class RecordActivity extends AppCompatActivity {
                         saveSoundFile(file, true);
 
                         recordNumber = Integer.parseInt(recordNumber.toString()) + 1;
-                        mdatabase.child("users").child("user").getUid().child("recordNumber").setValue(recordNumber);
+                        mdatabase.child("users").child(user.getUid()).child("recordNumber").setValue(recordNumber);
                     }
 
                     public void onCancelled(DatabaseError databaseError) {
@@ -257,7 +350,6 @@ public class RecordActivity extends AppCompatActivity {
         setButtonEnable(false);
     }
 
-
     private void stopAll() {
         if (recordTask != null && recordTask.isRunning()) {
             stopRecording();
@@ -266,7 +358,6 @@ public class RecordActivity extends AppCompatActivity {
             stopPlaying();
         }
     }
-
 
 
     private void setButtonEnable(boolean b) {
@@ -296,8 +387,6 @@ public class RecordActivity extends AppCompatActivity {
             }
         }).start();
     }
-
-
 
 
     private File getSavePath() {

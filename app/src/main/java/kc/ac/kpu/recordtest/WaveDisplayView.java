@@ -2,7 +2,6 @@ package kc.ac.kpu.recordtest;
 
 import java.io.ByteArrayOutputStream;
 
-import kc.ac.kpu.recordtest.NormalizeWaveData;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
